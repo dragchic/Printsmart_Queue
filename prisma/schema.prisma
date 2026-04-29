@@ -1,0 +1,300 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  OWNER
+  COUNTER_SERVICE
+  MACHINE
+  CASHIER
+}
+
+enum WorkShift {
+  PAGI
+  MALAM
+}
+
+enum TicketStatus {
+  WAITING
+  SERVING
+  DONE
+  SKIPPED
+  CANCEL
+}
+
+enum PickupMethod {
+  DITUNGGU
+  DITINGGAL
+}
+
+enum MachineItemStatus {
+  WAITING
+  PROCESSING
+  DONE
+}
+
+enum PickupStatus {
+  NOT_READY
+  READY_NOT_TAKEN
+  TAKEN
+  EXPIRED
+}
+
+enum inventory_change_type {
+  INITIAL
+  RESTOCK
+  USAGE
+  WASTE
+  ADJUSTMENT
+}
+
+enum ProductionMachine {
+  MESIN_A3_PLUS
+  MESIN_DTF
+  MESIN_INDOOR
+  MESIN_PLOTTER
+  MESIN_UV
+}
+
+enum OrderFileSource {
+  LOCAL_UPLOAD
+  GDRIVE_LINK
+}
+
+model user {
+  user_id       Int        @id @default(autoincrement())
+  full_name     String
+  username      String     @unique
+  password_hash String
+  role          UserRole
+  shift         WorkShift? @default(PAGI)
+  is_active     Boolean    @default(true)
+
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  created_by_id Int?
+
+  created_by    user?  @relation("UserCreator", fields: [created_by_id], references: [user_id])
+  created_users user[] @relation("UserCreator")
+
+  pickedup_tickets         queue_ticket[] @relation("TicketPickedUpBy")
+  handled_tickets          queue_ticket[] @relation("HandledBy")
+  machine_notified_tickets queue_ticket[] @relation("MachineNotifiedBy")
+}
+
+model service_option {
+  service_option_id Int      @id @default(autoincrement())
+  name              String   @unique
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  ticket_items queue_ticket_item[]
+}
+
+model customer {
+  customer_id  Int      @id @default(autoincrement())
+  name         String   @db.VarChar(150)
+  phone_number String   @unique(map: "ux_customer_phone_number") @db.VarChar(20)
+  created_at   DateTime @default(now()) @db.Timestamp(6)
+
+  queue_tickets queue_ticket[]
+
+  @@index([name], map: "ix_customer_name")
+}
+
+model queue_ticket {
+  ticket_id    Int      @id @default(autoincrement())
+  ticket_date  DateTime @db.Date
+  queue_number Int
+  customer_id  Int
+
+  status TicketStatus @default(WAITING)
+
+  created_at             DateTime  @default(now()) @db.Timestamp(6)
+  updated_at             DateTime  @updatedAt
+  called_at              DateTime?
+  finished_at            DateTime?
+  skipped_at             DateTime?
+  canceled_at            DateTime?
+  machine_done_at        DateTime?
+  machine_notified_by_id Int?
+  machine_notified_at    DateTime?
+  handled_by_id          Int?
+
+  pickup_method   PickupMethod?
+  pickup_status   PickupStatus  @default(NOT_READY)
+  pickup_ready_at DateTime?
+  picked_up_at    DateTime?
+  picked_up_by    Int?
+  expired_at      DateTime?
+
+  usage_submitted_at DateTime?
+
+  customer                 customer @relation(fields: [customer_id], references: [customer_id])
+  pickup_cashier           user?    @relation("TicketPickedUpBy", fields: [picked_up_by], references: [user_id])
+  handled_by_user          user?    @relation("HandledBy", fields: [handled_by_id], references: [user_id])
+  machine_notified_by_user user?    @relation("MachineNotifiedBy", fields: [machine_notified_by_id], references: [user_id])
+
+  items            queue_ticket_item[]
+  inventory_usages order_inventory_usage[]
+  stock_changes    inventory_stock_change[]
+
+  @@unique([ticket_date, queue_number], map: "ux_queue_ticket_ticket_date_queue_number")
+  @@index([customer_id], map: "ix_queue_ticket_customer_id")
+  @@index([status], map: "ix_queue_ticket_status")
+  @@index([pickup_status], map: "ix_queue_ticket_pickup_status")
+  @@index([ticket_date], map: "ix_queue_ticket_ticket_date")
+  @@index([handled_by_id], map: "ix_queue_ticket_handled_by_id")
+  @@index([machine_notified_by_id], map: "ix_queue_ticket_machine_notified_by_id")
+  @@index([picked_up_by], map: "ix_queue_ticket_picked_up_by")
+}
+
+model queue_ticket_item {
+  id                  Int     @id @default(autoincrement())
+  ticket_id           Int
+  service_option_id   Int?
+  custom_service_name String?
+  order_qty           Float
+  note                String?
+
+  production_machine ProductionMachine?
+  needs_finishing    Boolean            @default(false)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  machine_status      MachineItemStatus @default(WAITING)
+  machine_note        String?
+  processed_by        String?
+  machine_started_at  DateTime?
+  machine_finished_at DateTime?
+
+  queue_ticket   queue_ticket    @relation(fields: [ticket_id], references: [ticket_id])
+  service_option service_option? @relation(fields: [service_option_id], references: [service_option_id])
+
+  materials queue_ticket_item_material[]
+  files     order_file[]
+
+  @@index([ticket_id], map: "ix_queue_ticket_item_ticket_id")
+  @@index([service_option_id], map: "ix_queue_ticket_item_service_option_id")
+  @@index([production_machine], map: "ix_queue_ticket_item_production_machine")
+  @@index([machine_status], map: "ix_queue_ticket_item_machine_status")
+}
+
+model order_file {
+  order_file_id        Int             @id @default(autoincrement())
+  queue_ticket_item_id Int
+  source_type          OrderFileSource
+
+  original_file_name String?
+  stored_file_name   String?
+  file_path          String?
+  mime_type          String?
+  file_size_bytes    Int?
+  gdrive_url         String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  queue_ticket_item queue_ticket_item @relation(fields: [queue_ticket_item_id], references: [id], onDelete: Cascade)
+}
+
+model inventory_item {
+  inventory_item_id Int    @id @default(autoincrement())
+  name              String @unique
+  unit              String
+  stock_current     Float  @default(0)
+
+  safe_min_qty    Float @default(100)
+  warning_min_qty Float @default(20)
+  warning_max_qty Float @default(100)
+
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  stock_changes  inventory_stock_change[]
+  order_usages   order_inventory_usage[]
+  item_materials queue_ticket_item_material[]
+
+  @@index([is_active], map: "ix_inventory_item_is_active")
+  @@index([name], map: "ix_inventory_item_name")
+}
+
+model inventory_stock_change {
+  inventory_stock_change_id Int                   @id @default(autoincrement())
+  inventory_item_id         Int
+  qty_change                Float
+  change_type               inventory_change_type
+  note                      String?
+  input_by                  String?
+  ticket_id                 Int?
+  created_at                DateTime              @default(now())
+
+  inventory_item inventory_item @relation(fields: [inventory_item_id], references: [inventory_item_id])
+  ticket         queue_ticket?  @relation(fields: [ticket_id], references: [ticket_id])
+
+  @@index([inventory_item_id], map: "ix_inventory_stock_change_inventory_item_id")
+  @@index([ticket_id], map: "ix_inventory_stock_change_ticket_id")
+  @@index([change_type], map: "ix_inventory_stock_change_change_type")
+  @@index([created_at], map: "ix_inventory_stock_change_created_at")
+}
+
+model order_inventory_usage {
+  order_inventory_usage_id Int      @id @default(autoincrement())
+  ticket_id                Int
+  inventory_item_id        Int
+  qty_good                 Float    @default(0)
+  qty_waste                Float    @default(0)
+  qty_total_used           Float    @default(0)
+  input_by                 String?
+  created_at               DateTime @default(now())
+
+  ticket         queue_ticket   @relation(fields: [ticket_id], references: [ticket_id])
+  inventory_item inventory_item @relation(fields: [inventory_item_id], references: [inventory_item_id])
+
+  @@index([ticket_id], map: "ix_order_inventory_usage_ticket_id")
+  @@index([inventory_item_id], map: "ix_order_inventory_usage_inventory_item_id")
+  @@index([created_at], map: "ix_order_inventory_usage_created_at")
+}
+
+model queue_ticket_item_material {
+  queue_ticket_item_material_id Int     @id @default(autoincrement())
+  queue_ticket_item_id          Int
+  inventory_item_id             Int
+  specification_label           String?
+  qty_planned                   Float?
+  sort_order                    Int     @default(0)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  queue_ticket_item queue_ticket_item @relation(fields: [queue_ticket_item_id], references: [id], onDelete: Cascade)
+  inventory_item    inventory_item    @relation(fields: [inventory_item_id], references: [inventory_item_id])
+
+  usages queue_ticket_item_material_usage[]
+
+  @@index([queue_ticket_item_id], map: "ix_qtim_queue_ticket_item_id")
+  @@index([inventory_item_id], map: "ix_qtim_inventory_item_id")
+}
+
+model queue_ticket_item_material_usage {
+  queue_ticket_item_material_usage_id Int      @id @default(autoincrement())
+  queue_ticket_item_material_id       Int
+  qty_good                            Float    @default(0)
+  qty_waste                           Float    @default(0)
+  qty_total_used                      Float    @default(0)
+  input_by                            String?
+  note                                String?
+  created_at                          DateTime @default(now())
+
+  queue_ticket_item_material queue_ticket_item_material @relation(fields: [queue_ticket_item_material_id], references: [queue_ticket_item_material_id])
+
+  @@index([queue_ticket_item_material_id], map: "ix_qtimu_material_id")
+}

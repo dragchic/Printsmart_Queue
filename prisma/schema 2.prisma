@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  OWNER
+  COUNTER_SERVICE
+  MACHINE
+}
+
+enum PickupMethod {
+  DITUNGGU
+  DITINGGAL
+}
+
+enum TicketStatus {
+  WAITING
+  SERVING
+  DONE
+  SKIPPED
+  CANCEL
+}
+
+model user {
+  user_id       Int      @id @default(autoincrement())
+  full_name     String
+  username      String   @unique
+  password_hash String
+  role          UserRole
+  is_active     Boolean  @default(true)
+
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  created_by_id Int?
+  created_by    user?    @relation("UserCreator", fields: [created_by_id], references: [user_id])
+  created_users user[]   @relation("UserCreator")
+}
+
+model service_option {
+  service_option_id Int      @id @default(autoincrement())
+  name              String   @unique
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @default(now()) @updatedAt
+
+  queue_tickets queue_ticket[]
+}
+
+model customer {
+  customer_id  Int            @id @default(autoincrement())
+  name         String         @db.VarChar(150)
+  phone_number String         @unique(map: "ux_customer_phone_number") @db.VarChar(20)
+  created_at   DateTime       @default(now()) @db.Timestamp(6)
+  queue_ticket queue_ticket[]
+
+  @@index([name], map: "ix_customer_name")
+}
+
+model queue_ticket {
+  ticket_id    Int      @id @default(autoincrement())
+  ticket_date  DateTime @db.Date
+  queue_number Int
+  customer_id  Int
+
+  status TicketStatus @default(WAITING)
+
+  created_at          DateTime  @default(now()) @db.Timestamp(6)
+  updated_at          DateTime  @updatedAt
+  called_at           DateTime?
+  finished_at         DateTime?
+  skipped_at          DateTime?
+  canceled_at         DateTime?
+  machine_done_at     DateTime?
+  machine_notified_by String?
+  machine_notified_at DateTime?
+  handled_by          String?
+
+  service_option_id   Int?
+  custom_service_name String?
+  order_qty           Float?
+  order_note          String?
+  pickup_method       PickupMethod?
+  machine_worker_name String?
+  usage_submitted_at  DateTime?
+
+  customer       customer        @relation(fields: [customer_id], references: [customer_id])
+  service_option service_option? @relation(fields: [service_option_id], references: [service_option_id])
+
+  inventory_usages order_inventory_usage[]
+}
+
+model inventory_item {
+  inventory_item_id Int      @id @default(autoincrement())
+  name              String   @unique
+  unit              String
+  stock_initial     Float    @default(0)
+  stock_out         Float    @default(0)
+  stock_available   Float    @default(0)
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  order_usages order_inventory_usage[]
+  adjustments  inventory_adjustment[]
+}
+
+model inventory_adjustment {
+  inventory_adjustment_id Int      @id @default(autoincrement())
+  inventory_item_id       Int
+  qty_adjustment          Float
+  reason                  String?
+  input_by                String?
+  created_at              DateTime @default(now())
+
+  inventory_item inventory_item @relation(fields: [inventory_item_id], references: [inventory_item_id])
+}
+
+model order_inventory_usage {
+  order_inventory_usage_id Int      @id @default(autoincrement())
+  ticket_id                Int
+  inventory_item_id        Int
+  qty_good                 Float    @default(0)
+  qty_waste                Float    @default(0)
+  qty_total_used           Float    @default(0)
+  input_by                 String?
+  created_at               DateTime @default(now())
+
+  ticket         queue_ticket   @relation(fields: [ticket_id], references: [ticket_id])
+  inventory_item inventory_item @relation(fields: [inventory_item_id], references: [inventory_item_id])
+}
