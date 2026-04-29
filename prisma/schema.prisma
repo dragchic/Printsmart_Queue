@@ -122,37 +122,16 @@ model queue_ticket {
   finished_at            DateTime?
   skipped_at             DateTime?
   canceled_at            DateTime?
-  machine_done_at        DateTime?
-  machine_notified_by_id Int?
-  machine_notified_at    DateTime?
   handled_by_id          Int?
 
-  pickup_method   PickupMethod?
-  pickup_status   PickupStatus  @default(NOT_READY)
-  pickup_ready_at DateTime?
-  picked_up_at    DateTime?
-  picked_up_by    Int?
-  expired_at      DateTime?
-
-  usage_submitted_at DateTime?
-
   customer                 customer @relation(fields: [customer_id], references: [customer_id])
-  pickup_cashier           user?    @relation("TicketPickedUpBy", fields: [picked_up_by], references: [user_id])
   handled_by_user          user?    @relation("HandledBy", fields: [handled_by_id], references: [user_id])
-  machine_notified_by_user user?    @relation("MachineNotifiedBy", fields: [machine_notified_by_id], references: [user_id])
-
-  items            queue_ticket_item[]
-  inventory_usages order_inventory_usage[]
-  stock_changes    inventory_stock_change[]
 
   @@unique([ticket_date, queue_number], map: "ux_queue_ticket_ticket_date_queue_number")
   @@index([customer_id], map: "ix_queue_ticket_customer_id")
   @@index([status], map: "ix_queue_ticket_status")
-  @@index([pickup_status], map: "ix_queue_ticket_pickup_status")
   @@index([ticket_date], map: "ix_queue_ticket_ticket_date")
   @@index([handled_by_id], map: "ix_queue_ticket_handled_by_id")
-  @@index([machine_notified_by_id], map: "ix_queue_ticket_machine_notified_by_id")
-  @@index([picked_up_by], map: "ix_queue_ticket_picked_up_by")
 }
 
 model queue_ticket_item {

@@ -275,32 +275,56 @@ export default function CounterPage() {
 
   async function handleConfirmProcess() {
     if (!selectedTicket) return;
-
+  
     setLoadingSubmit(true);
     setCallingId(selectedTicket.ticket_id);
     setMessage("");
-
+  
     try {
-      const res = await fetch("/api/tickets/call", {
+      // 1. CALL (trigger TV + suara)
+      const callRes = await fetch("/api/tickets/call", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ ticket_id: selectedTicket.ticket_id }),
       });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setMessage(data.error ?? "Failed to call ticket");
+  
+      const callData = await callRes.json().catch(() => ({}));
+  
+      if (!callRes.ok) {
+        setMessage(callData.error ?? "Failed to call ticket");
         return;
       }
-
-      const ticketId = selectedTicket.ticket_id;
+  
+      // 2. LANGSUNG DONE
+      const doneRes = await fetch("/api/tickets/update-status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ticket_id: selectedTicket.ticket_id,
+          status: "DONE",
+        }),
+      });
+  
+      const doneData = await doneRes.json().catch(() => ({}));
+  
+      if (!doneRes.ok) {
+        setMessage(doneData.error ?? "Failed to complete ticket");
+        return;
+      }
+  
       setConfirmOpen(false);
       setSelectedTicket(null);
-      router.push(`/counter/serving/${ticketId}`);
-    } catch {
+      setActiveTab("COMPLETED");
+      fetchTickets("COMPLETED");
+  
+      // refresh list
+      fetchTickets(activeTab);
+    } catch (err) {
+      console.error(err);
       setMessage("Unexpected error");
     } finally {
       setLoadingSubmit(false);
@@ -308,40 +332,40 @@ export default function CounterPage() {
     }
   }
 
-  async function handleSkip() {
-    if (!selectedTicket) return;
+  // async function handleSkip() {
+  //   if (!selectedTicket) return;
 
-    setLoadingSubmit(true);
-    setMessage("");
+  //   setLoadingSubmit(true);
+  //   setMessage("");
 
-    try {
-      const res = await fetch("/api/tickets/update-status", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ticket_id: selectedTicket.ticket_id,
-          status: "SKIPPED",
-        }),
-      });
+  //   try {
+  //     const res = await fetch("/api/tickets/update-status", {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //       body: JSON.stringify({
+  //         ticket_id: selectedTicket.ticket_id,
+  //         status: "SKIPPED",
+  //       }),
+  //     });
 
-      const data = await res.json().catch(() => ({}));
+  //     const data = await res.json().catch(() => ({}));
 
-      if (!res.ok) {
-        setMessage(data.error ?? "Failed to skip ticket");
-        return;
-      }
+  //     if (!res.ok) {
+  //       setMessage(data.error ?? "Failed to skip ticket");
+  //       return;
+  //     }
 
-      setConfirmOpen(false);
-      setSelectedTicket(null);
-      await fetchTickets(activeTab);
-    } catch {
-      setMessage("Unexpected error");
-    } finally {
-      setLoadingSubmit(false);
-    }
-  }
+  //     setConfirmOpen(false);
+  //     setSelectedTicket(null);
+  //     await fetchTickets(activeTab);
+  //   } catch {
+  //     setMessage("Unexpected error");
+  //   } finally {
+  //     setLoadingSubmit(false);
+  //   }
+  // }
 
   async function handleDone(ticket: TicketItem) {
     try {
@@ -458,21 +482,6 @@ export default function CounterPage() {
                   }}
                 >
                   Antrean Order
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("IN_SERVICE")}
-                  className={`flex shrink-0 items-center justify-center rounded-2xl border text-xl font-medium transition ${
-                    activeTab === "IN_SERVICE"
-                      ? "border-transparent bg-gradient-to-r from-[#FF3D3D] to-[#930000] text-white shadow-sm"
-                      : "border border-[#CCCCCC] bg-[#FAF5FB]/80 text-black hover:bg-[#FFF1F1] hover:shadow-sm"
-                  }`}
-                  style={{
-                    width: "170px",
-                    height: "46px",
-                  }}
-                >
-                  Diproses
                 </button>
 
                 <button
@@ -908,8 +917,23 @@ export default function CounterPage() {
 
                 <div className="mt-8 flex items-center gap-6">
                   <button
+                    onClick={() => setConfirmOpen(false)}
+                    // disabled={loadingSubmit}
+                    className="flex items-center justify-center rounded-[16px] text-white transition hover:brightness-95 disabled:opacity-70"
+                    style={{
+                      width: "140px",
+                      height: "52px",
+                      background: "linear-gradient(90deg, #FF4B4B 0%, #B40000 100%)",
+                      fontSize: "18px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {loadingSubmit ? "Loading..." : "Batalkan"}
+                  </button>
+
+                  <button
                     type="button"
-                    onClick={handleSkip}
+                    onClick={handleConfirmProcess}
                     disabled={loadingSubmit}
                     className="rounded-[16px] text-white transition hover:brightness-105 disabled:bg-gray-400"
                     style={{
@@ -920,22 +944,7 @@ export default function CounterPage() {
                       fontWeight: 700,
                     }}
                   >
-                    {loadingSubmit ? "Loading..." : "Skip"}
-                  </button>
-
-                  <button
-                    onClick={handleConfirmProcess}
-                    disabled={loadingSubmit}
-                    className="flex items-center justify-center rounded-[16px] text-white transition hover:brightness-95 disabled:opacity-70"
-                    style={{
-                      width: "140px",
-                      height: "52px",
-                      background: "linear-gradient(90deg, #FF4B4B 0%, #B40000 100%)",
-                      fontSize: "18px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {loadingSubmit ? "Loading..." : "Proses"}
+                    {loadingSubmit ? "Loading..." : "Ya"}
                   </button>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { ClipboardList } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -29,6 +29,8 @@ export default function TvPage() {
   const [ads, setAds] = useState<string[]>([]);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [displayedAd, setDisplayedAd] = useState<string | null>(null);
+  const [displayNow, setDisplayNow] = useState<number | null>(null);
+  const lastAnnouncedRef = useRef<number | null>(null);
 
   function isVideoFile(file?: string | null) {
     return !!file && file.toLowerCase().endsWith(".mp4");
@@ -273,7 +275,11 @@ export default function TvPage() {
             next: msg.next ?? null,
           });
     
-          if (newNow !== null) {
+          if (newNow !== null && newNow !== lastAnnouncedRef.current) {
+            lastAnnouncedRef.current = newNow;
+        
+            console.log("PLAY AUDIO:", newNow);
+        
             announceQueue(newNow);
           }
         }
@@ -431,7 +437,7 @@ export default function TvPage() {
 
                 <div>
                 <div className="font-bold leading-none tracking-tight text-[clamp(80px,8vw,170px)]">
-                  {formatQueue(state.now)}
+                  {formatQueue(displayNow ?? state.now)}
                 </div>
 
                   <div className="text-[clamp(18px,1.7vw,30px)] mt-[0.5vh]">

@@ -100,12 +100,12 @@ export async function POST(req: Request) {
       );
     }
 
-    if (isDone && ticket.items.length === 0) {
-      return NextResponse.json(
-        { error: "Ticket has no order items yet" },
-        { status: 400 }
-      );
-    }
+    // if (isDone && ticket.items.length === 0) {
+    //   return NextResponse.json(
+    //     { error: "Ticket has no order items yet" },
+    //     { status: 400 }
+    //   );
+    // }
 
     const now = new Date();
 
@@ -117,13 +117,6 @@ export async function POST(req: Request) {
         skipped_at: isSkipped ? now : null,
         canceled_at: isCancel ? now : null,
 
-        pickup_status: isDone
-          ? "READY_NOT_TAKEN"
-          : isSkipped || isCancel
-            ? "NOT_READY"
-            : ticket.pickup_status,
-
-        pickup_ready_at: isDone ? now : null,
         handled_by_id:
           !ticket.handled_by_id && currentRole !== "OWNER"
             ? currentUserId
@@ -140,16 +133,6 @@ export async function POST(req: Request) {
             user_id: true,
             full_name: true,
             username: true,
-          },
-        },
-        items: {
-          include: {
-            service_option: {
-              select: {
-                service_option_id: true,
-                name: true,
-              },
-            },
           },
         },
       },
@@ -170,7 +153,6 @@ export async function POST(req: Request) {
     });
 
     broadcastTicket({
-      type: "pickup_changed",
       action: isDone ? "ready" : nextStatus.toLowerCase(),
       ticket_id: updated.ticket_id,
       queue_number: updated.queue_number,

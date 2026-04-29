@@ -51,7 +51,6 @@ export async function POST(req: Request) {
         }
        },
     });
-    console.log("updated ticket:", updated)
 
     broadcastTicket({
       type: "waiting_changed",
@@ -70,7 +69,7 @@ export async function POST(req: Request) {
     const next = await prisma.queue_ticket.findFirst({
         where: {
           status: "WAITING",
-        //   ticket_date: updated.ticket_date,
+          ticket_date: updated.ticket_date,
         },
         orderBy: { queue_number: "asc" },
         select: { queue_number: true },
