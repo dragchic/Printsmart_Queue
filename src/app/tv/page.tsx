@@ -25,7 +25,7 @@ export default function TvPage() {
   const [time, setTime] = useState(new Date());
   const [selesaiList, setSelesaiList] = useState<string[]>([]);
   const [menungguList, setMenungguList] = useState<string[]>([]);
-
+  const [audioReady, setAudioReady] = useState(false);
   const [ads, setAds] = useState<string[]>([]);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [displayedAd, setDisplayedAd] = useState<string | null>(null);
@@ -73,6 +73,21 @@ export default function TvPage() {
       setCurrentAdIndex(nextIndex);
       setDisplayedAd(nextFile);
     } catch {}
+  }
+
+  async function unlockAudio() {
+    try {
+      const audio = new Audio("/queue-audio/call-bell.mp3");
+      audio.volume = 0.01; 
+      await audio.play();
+      audio.pause();
+      audio.currentTime = 0;
+  
+      setAudioReady(true);
+      console.log("Audio unlocked");
+    } catch (err) {
+      console.error("Unlock audio failed:", err);
+    }
   }
 
   // AUDIO ANTRIAN
@@ -294,6 +309,9 @@ export default function TvPage() {
 
   return (
     <main
+      onClick={() => {
+        if (!audioReady) unlockAudio();
+      }}
       className="w-screen h-screen overflow-hidden text-black"
       style={{
         backgroundImage:
@@ -451,7 +469,7 @@ export default function TvPage() {
                 {/* Order Bisa Diambil */}
                 <div className="border-r border-gray-300 pr-[1vw] flex flex-col min-h-0 overflow-hidden">
                   <div className="text-center font-bold text-[clamp(18px,1.4vw,28px)] mb-[1vh] shrink-0">
-                    Order Bisa Diambil
+                    Sudah dipangil
                   </div>
 
                   <div className="grid grid-cols-1 gap-[0.8vw] overflow-hidden">
@@ -488,6 +506,13 @@ export default function TvPage() {
           </section>
         </div>
       </div>
+      {!audioReady && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="rounded-2xl bg-white px-8 py-5 text-xl font-bold text-red-600">
+            Klik layar sekali untuk mengaktifkan suara
+          </div>
+        </div>
+      )}
     </main>
   );
 }
